@@ -50,57 +50,55 @@ def json_to_torch_geometric(json_data, has_labels=True):
     data_list = []
 
     for i, item in enumerate(json_data):
-        # Try different possible keys for nodes and edges
-        nodes = item.get('nodes', [])
-        edges = item.get('edges', [])
+        # Handle the actual JSON structure: edge_index, edge_attr, num_nodes, y
+        if 'edge_index' in item and 'num_nodes' in item:
+            # Use provided structure
+            edge_index = torch.tensor(item['edge_index'], dtype=torch.long)
+            num_nodes = item['num_nodes']
 
-        # Alternative keys that might be used
-        if not nodes and 'node_features' in item:
-            nodes = item['node_features']
-        if not edges and 'edge_index' in item:
-            edges = item['edge_index']
-        if not edges and 'adjacency' in item:
-            edges = item['adjacency']
+            # Handle edge attributes
+            edge_attr = None
+            if 'edge_attr' in item and item['edge_attr'] is not None:
+                edge_attr = torch.tensor(item['edge_attr'], dtype=torch.float)
 
-        # If nodes is still empty, try to infer from edges or use default
-        num_nodes = len(nodes) if nodes else 0
+            # Create node features (zeros as expected by the model)
+            x = torch.zeros(num_nodes, dtype=torch.long)
 
-        # If we have edges but no explicit nodes, infer node count
-        if edges and num_nodes == 0:
-            if isinstance(edges[0], list) and len(edges[0]) == 2:
-                # Edges in format [[src, dst], ...]
-                flat_edges = [node for edge in edges for node in edge]
-                num_nodes = max(flat_edges) + 1 if flat_edges else 0
-            elif len(edges) == 2 and isinstance(edges[0], list):
-                # Edges in format [[src1, src2, ...], [dst1, dst2, ...]]
-                all_nodes = edges[0] + edges[1]
-                num_nodes = max(all_nodes) + 1 if all_nodes else 0
-
-        # Skip only if we truly have no nodes AND no edges
-        if num_nodes == 0 and not edges:
-            print(f"Skipping empty graph at index {i}")
-            continue
-
-        # Create node features (using zeros as in original code)
-        x = torch.zeros(max(1, num_nodes), dtype=torch.long)
-
-        # Create edge index
-        if edges:
-            if isinstance(edges[0], list) and len(edges[0]) == 2:
-                # Format: [[src, dst], [src, dst], ...]
-                edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
-            elif len(edges) == 2 and isinstance(edges[0], list):
-                # Format: [[src1, src2, ...], [dst1, dst2, ...]]
-                edge_index = torch.tensor(edges, dtype=torch.long)
-            else:
-                # Fallback
-                edge_index = torch.empty((2, 0), dtype=torch.long)
         else:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
+            # Fallback to old parsing logic for different formats
+            nodes = item.get('nodes', [])
+            edges = item.get('edges', [])
+
+            num_nodes = len(nodes) if nodes else 0
+
+            if edges and num_nodes == 0:
+                if isinstance(edges[0], list) and len(edges[0]) == 2:
+                    flat_edges = [node for edge in edges for node in edge]
+                    num_nodes = max(flat_edges) + 1 if flat_edges else 0
+                elif len(edges) == 2 and isinstance(edges[0], list):
+                    all_nodes = edges[0] + edges[1]
+                    num_nodes = max(all_nodes) + 1 if all_nodes else 0
+
+            if num_nodes == 0 and not edges:
+                continue
+
+            x = torch.zeros(max(1, num_nodes), dtype=torch.long)
+
+            if edges:
+                if isinstance(edges[0], list) and len(edges[0]) == 2:
+                    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+                elif len(edges) == 2 and isinstance(edges[0], list):
+                    edge_index = torch.tensor(edges, dtype=torch.long)
+                else:
+                    edge_index = torch.empty((2, 0), dtype=torch.long)
+            else:
+                edge_index = torch.empty((2, 0), dtype=torch.long)
+
+            edge_attr = None
 
         # Create data object
-        data = Data(x=x, edge_index=edge_index)
-        data.num_nodes = max(1, num_nodes)
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
+        data.num_nodes = num_nodes
 
         # Add edge attributes (required for model)
         if edge_index.shape[1] > 0:
@@ -127,14 +125,14 @@ def json_to_torch_geometric(json_data, has_labels=True):
             elif 'target' in item:
                 y_val = item['target']
 
-            # Validate and clamp label to valid range [0, 5]
+            # Simple validation - just ensure valid range
             if y_val is not None:
                 y_val = max(0, min(5, int(y_val)))
                 data.y = torch.tensor(y_val, dtype=torch.long)
             else:
                 data.y = torch.tensor(0, dtype=torch.long)
 
-        # Store original index for GCOD if needed
+        # Store original index - will be reassigned after split
         data.original_idx = i
 
         data_list.append(data)
@@ -177,9 +175,6 @@ class GCODLoss(nn.Module):
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
-        # Validate and clamp targets to [0, num_classes-1]
-        targets = torch.clamp(targets, 0, self.num_classes - 1)
-
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
         ce_loss_values = self.ce_loss(logits, targets)
@@ -193,14 +188,6 @@ class GCODLoss(nn.Module):
         batch_size = logits.size(0)
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
-
-        # Robust target validation
-        targets = targets.flatten()  # Ensure 1D
-        targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
-        targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
-        targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
-                              targets)  # Cap at max
-        targets = targets.long()  # Ensure long type
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -222,9 +209,6 @@ class GCODLoss(nn.Module):
         batch_size = logits.size(0)
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
-
-        # Validate and clamp targets to [0, num_classes-1]
-        targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         diag_elements = (logits * y_onehot).sum(dim=1)
@@ -259,9 +243,6 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
 
         if current_baseline_mode == 4:  # GCOD specific logic
             batch_indices = data.original_idx.to(device=device, dtype=torch.long)
-
-            # Ensure indices are within valid range
-            batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
 
             if u_values_global.device != device:
                 u_batch_cpu = u_values_global[batch_indices.cpu()].clone().detach()
@@ -448,8 +429,8 @@ def get_optimized_arguments(dataset_name):
     elif dataset_name == 'D':
         base_args.update({
             'gcod_lambda_p': 2.0,
-            'gcod_lambda_r': 0.0,  # No regularization for D
-            'edge_drop_ratio': 0.3,
+            'gcod_lambda_r': 0.1,  # Changed from 0.0 to match notebook
+            'edge_drop_ratio': 0.1,  # Changed from 0.3
         })
     else:
         # Default values for A, B
@@ -487,12 +468,17 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         train_size = max(1, int((1 - args.val_split) * total_size))
         val_size = max(1, total_size - train_size)
 
-        # Ensure we don't exceed total size
         if train_size + val_size > total_size:
             train_size = total_size - 1
             val_size = 1
 
         train_dataset, val_dataset = random_split(all_train_data, [train_size, val_size])
+
+        # CRITICAL FIX: Reassign indices after split
+        for i, data in enumerate(train_dataset):
+            data.original_idx = i
+        for i, data in enumerate(val_dataset):
+            data.original_idx = i
 
         print(f"Train samples: {len(train_dataset)}")
         print(f"Val samples: {len(val_dataset)}")
@@ -571,10 +557,10 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
             else:
                 patience_counter += 1
 
-            # Learning rate scheduling with logging
+            # Learning rate scheduling with logging - FIXED to step on val_acc
             if scheduler is not None:
                 old_lr = current_lr
-                scheduler.step(val_acc)
+                scheduler.step(val_acc)  # Step on accuracy, not loss
                 new_lr = optimizer.param_groups[0]['lr']
 
                 if new_lr != old_lr:
