@@ -214,10 +214,31 @@ def save_predictions(predictions, dataset_name):
     output_df.to_csv(output_csv_path, index=False)
     print(f"Predictions saved to {output_csv_path}")
 
-
 def save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, output_dir):
     """Save training metrics to text files instead of plots"""
     os.makedirs(output_dir, exist_ok=True)
+
+def plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, output_dir):
+    epochs = range(1, len(train_losses) + 1)
+    plt.figure(figsize=(15, 6))
+
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs, train_losses, label="Training Loss", color='blue', marker='o')
+    plt.plot(epochs, val_losses, label="Validation Loss", color='red', marker='s')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss per Epoch')
+    plt.legend()
+    plt.grid(True)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs, train_accuracies, label="Training Accuracy", color='green', marker='o')
+    plt.plot(epochs, val_accuracies, label="Validation Accuracy", color='orange', marker='s')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Training and Validation Accuracy per Epoch')
+    plt.legend()
+    plt.grid(True)
 
     # Save detailed metrics
     metrics_file = os.path.join(output_dir, "training_metrics.txt")
@@ -241,6 +262,12 @@ def save_training_logs(train_losses, train_accuracies, val_losses, val_accuracie
 
     print(f"Training logs saved to {output_dir}")
 
+    os.makedirs(output_dir, exist_ok=True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, "training_progress.png"))
+    plt.show()
+    plt.close()
+
 
 def get_arguments(dataset_name):
     """Set training configuration directly"""
@@ -248,7 +275,7 @@ def get_arguments(dataset_name):
         'dataset': dataset_name,
         'train_mode': 1,
         'num_layer': 2,
-        'emb_dim': 128,
+        'emb_dim': 256,
         'drop_ratio': 0.3,
         'virtual_node': True,
         'residual': True,
@@ -257,7 +284,7 @@ def get_arguments(dataset_name):
         'batch_norm': True,
         'graph_pooling': "mean",
         'batch_size': 64,
-        'epochs': 200,
+        'epochs': 300,
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
         'gce_q': 0.9,
@@ -288,6 +315,24 @@ def get_arguments(dataset_name):
             'num_layer': 3,
             'gce_q': 0.9,
             'emb_dim': 128,
+        })
+
+    if dataset_name == 'C':
+        args.update({
+            'num_layer': 2,
+            'gce_q': 0.9,
+            'emb_dim': 512,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.7,
+        })
+
+    if dataset_name == 'D':
+        args.update({
+            'num_layer': 2,
+            'gce_q': 0.7,
+            'emb_dim': 512,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.6,
         })
 
     return argparse.Namespace(**args)
@@ -407,7 +452,6 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
         for epoch in range(args.epochs):
             current_lr = optimizer.param_groups[0]['lr']
             learning_rates.append(current_lr)
-
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
                 save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_epoch", current_epoch=epoch,
@@ -435,11 +479,14 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
             # Learning rate scheduling with logging
             if scheduler is not None:
                 old_lr = current_lr
+                #current_lr = optimizer.param_groups[0]['lr']
                 scheduler.step(val_loss)
                 new_lr = optimizer.param_groups[0]['lr']
 
                 if new_lr != old_lr:
                     print(f"Learning rate reduced: {old_lr:.2e} → {new_lr:.2e}")
+                # if new_lr != current_lr:
+                #     print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
                 current_lr = optimizer.param_groups[0]['lr']
@@ -451,9 +498,10 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
                 print(f"Early stopping triggered after {epoch + 1} epochs")
                 break
 
-        # Save training logs
+        # Plot training progress
         os.makedirs('logs', exist_ok=True)
         save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
+        plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, 'logs')
 
     else:
         # Testing only mode
