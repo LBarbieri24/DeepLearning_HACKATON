@@ -111,10 +111,17 @@ def json_to_torch_geometric(json_data, has_labels=True):
 
         # Add label if available
         if has_labels:
-            if 'label' in item:
+            if 'y' in item:
+                y_data = item['y']
+                # Handle nested list format [[4]] -> 4
+                if isinstance(y_data, list) and len(y_data) > 0:
+                    if isinstance(y_data[0], list):
+                        y_data = y_data[0][0] if y_data[0] else 0
+                    else:
+                        y_data = y_data[0]
+                data.y = torch.tensor(y_data, dtype=torch.long)
+            elif 'label' in item:
                 data.y = torch.tensor(item['label'], dtype=torch.long)
-            elif 'y' in item:
-                data.y = torch.tensor(item['y'], dtype=torch.long)
             elif 'target' in item:
                 data.y = torch.tensor(item['target'], dtype=torch.long)
 
