@@ -102,6 +102,13 @@ def json_to_torch_geometric(json_data, has_labels=True):
         data = Data(x=x, edge_index=edge_index)
         data.num_nodes = max(1, num_nodes)
 
+        # Add edge attributes (required for model)
+        if edge_index.shape[1] > 0:
+            # Create dummy edge attributes if not provided
+            data.edge_attr = torch.zeros(edge_index.shape[1], 7, dtype=torch.float)
+        else:
+            data.edge_attr = torch.empty(0, 7, dtype=torch.float)
+
         # Add label if available
         if has_labels:
             if 'label' in item:
