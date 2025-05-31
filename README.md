@@ -7,8 +7,7 @@
 ## Approach
 
 This repository contains the final submission for the Deep Learning Hackathon (Sapienza University, MSc in Artificial Intelligence and Robotics). It details our approach to graph classification in the presence of noisy labels.
-
-Starting from the baseline structure, our solution builds upon a GNN architecture centered around Graph Isomorphism Network (GIN) convolutions. 
+Starting from the baseline structure, our solution builds upon a GNN architecture centered around Graph Isomorphism Network (GIN) convolutions.
 
 ### Key Techniques for Robustness
 
@@ -23,11 +22,7 @@ To enhance model performance, stability, and robustness to the noisy dataset, we
 
 ### Loss Function Strategy
 
-A critical aspect of our approach was the selection of loss functions tailored to handle label noise. Our empirical evaluations led to the following strategy:
-
-- **For Datasets A and B**: Generalized Cross-Entropy (GCE) loss (with q values typically around 0.7-0.9) yielded superior performance. GCE is known for its robustness to noise by down-weighting the contribution of potentially mislabeled samples with high loss.
-
-- **For Datasets C and D**: We implemented and utilized the Graph Centroid Outlier Discounting (GCOD) loss, as proposed by Wani et al. (2023) in "Robustness of Graph Classification: failure modes, causes, and noise-resistant loss in Graph Neural Networks". GCOD dynamically estimates per-sample confidence scores to re-weight the training objective, proving more effective for the noise characteristics observed in these datasets.
+A critical aspect of our approach was the selection of a loss function tailored to handle label noise. Our empirical evaluations led to using Generalized Cross-Entropy (GCE) loss (with q values typically around 0.7-0.9), which yielded superior performance. GCE is known for its robustness to noise by down-weighting the contribution of potentially mislabeled samples with high loss.
 
 ### Hyperparameters
 
@@ -42,6 +37,5 @@ While specific hyperparameter configurations varied slightly per dataset to opti
 
 - `main.py`: Main entry point for training and testing
 - `source/baselinedeep_updated.py`: Implements GCE and other standard baselines
-- `source/gcod_optimized_updated.py`: Implements the GCOD baseline
 - `source/models_EDandBatch_norm.py`: Defines the core GNN architecture
 - `source/conv.py`: Contains GIN/GCN convolution layer implementations
