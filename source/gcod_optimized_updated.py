@@ -45,31 +45,79 @@ def json_to_torch_geometric(json_data, has_labels=True):
     """Convert JSON data to PyTorch Geometric Data objects"""
     data_list = []
 
+    # Debug: Print first few items to understand structure
+    if len(json_data) > 0:
+        print(f"First item keys: {list(json_data[0].keys())}")
+        print(f"First item sample: {json_data[0]}")
+
     for i, item in enumerate(json_data):
+        # Try different possible keys for nodes and edges
         nodes = item.get('nodes', [])
         edges = item.get('edges', [])
 
-        # Skip empty graphs
-        num_nodes = len(nodes)
-        if num_nodes == 0:
+        # Alternative keys that might be used
+        if not nodes and 'node_features' in item:
+            nodes = item['node_features']
+        if not edges and 'edge_index' in item:
+            edges = item['edge_index']
+        if not edges and 'adjacency' in item:
+            edges = item['adjacency']
+
+        # If nodes is still empty, try to infer from edges or use default
+        num_nodes = len(nodes) if nodes else 0
+
+        # If we have edges but no explicit nodes, infer node count
+        if edges and num_nodes == 0:
+            if isinstance(edges[0], list) and len(edges[0]) == 2:
+                # Edges in format [[src, dst], ...]
+                flat_edges = [node for edge in edges for node in edge]
+                num_nodes = max(flat_edges) + 1 if flat_edges else 0
+            elif len(edges) == 2 and isinstance(edges[0], list):
+                # Edges in format [[src1, src2, ...], [dst1, dst2, ...]]
+                all_nodes = edges[0] + edges[1]
+                num_nodes = max(all_nodes) + 1 if all_nodes else 0
+
+        # Skip only if we truly have no nodes AND no edges
+        if num_nodes == 0 and not edges:
+            print(f"Skipping empty graph at index {i}")
             continue
 
-        x = torch.zeros(num_nodes, dtype=torch.long)
+        # Create node features (using zeros as in original code)
+        x = torch.zeros(max(1, num_nodes), dtype=torch.long)
 
+        # Create edge index
         if edges:
-            edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+            if isinstance(edges[0], list) and len(edges[0]) == 2:
+                # Format: [[src, dst], [src, dst], ...]
+                edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+            elif len(edges) == 2 and isinstance(edges[0], list):
+                # Format: [[src1, src2, ...], [dst1, dst2, ...]]
+                edge_index = torch.tensor(edges, dtype=torch.long)
+            else:
+                # Fallback
+                edge_index = torch.empty((2, 0), dtype=torch.long)
         else:
             edge_index = torch.empty((2, 0), dtype=torch.long)
 
+        # Create data object
         data = Data(x=x, edge_index=edge_index)
-        data.num_nodes = num_nodes
+        data.num_nodes = max(1, num_nodes)
 
-        if has_labels and 'label' in item:
-            data.y = torch.tensor(item['label'], dtype=torch.long)
+        # Add label if available
+        if has_labels:
+            if 'label' in item:
+                data.y = torch.tensor(item['label'], dtype=torch.long)
+            elif 'y' in item:
+                data.y = torch.tensor(item['y'], dtype=torch.long)
+            elif 'target' in item:
+                data.y = torch.tensor(item['target'], dtype=torch.long)
 
+        # Store original index for GCOD if needed
         data.original_idx = i
+
         data_list.append(data)
 
+    print(f"Loaded {len(data_list)} graphs from {len(json_data)} total items")
     return data_list
 
 

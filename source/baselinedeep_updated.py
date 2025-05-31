@@ -45,38 +45,83 @@ def json_to_torch_geometric(json_data, has_labels=True):
     """Convert JSON data to PyTorch Geometric Data objects"""
     data_list = []
 
+    # Debug: Print first few items to understand structure
+    if len(json_data) > 0:
+        print(f"First item keys: {list(json_data[0].keys())}")
+
     for i, item in enumerate(json_data):
-        # Extract node features, edges, and labels
-        nodes = item.get('nodes', [])
-        edges = item.get('edges', [])
+        # Handle the actual JSON structure: edge_index, edge_attr, num_nodes, y
+        if 'edge_index' in item and 'num_nodes' in item:
+            # Use provided structure
+            edge_index = torch.tensor(item['edge_index'], dtype=torch.long)
+            num_nodes = item['num_nodes']
 
-        # Skip empty graphs
-        num_nodes = len(nodes)
-        if num_nodes == 0:
-            continue
+            # Handle edge attributes
+            edge_attr = None
+            if 'edge_attr' in item and item['edge_attr'] is not None:
+                edge_attr = torch.tensor(item['edge_attr'], dtype=torch.float)
 
-        # Create node features (using zeros as in original code)
-        x = torch.zeros(num_nodes, dtype=torch.long)
+            # Create node features (zeros as expected by the model)
+            x = torch.zeros(num_nodes, dtype=torch.long)
 
-        # Create edge index
-        if edges:
-            edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
         else:
-            edge_index = torch.empty((2, 0), dtype=torch.long)
+            # Fallback to old parsing logic for different formats
+            nodes = item.get('nodes', [])
+            edges = item.get('edges', [])
+
+            num_nodes = len(nodes) if nodes else 0
+
+            if edges and num_nodes == 0:
+                if isinstance(edges[0], list) and len(edges[0]) == 2:
+                    flat_edges = [node for edge in edges for node in edge]
+                    num_nodes = max(flat_edges) + 1 if flat_edges else 0
+                elif len(edges) == 2 and isinstance(edges[0], list):
+                    all_nodes = edges[0] + edges[1]
+                    num_nodes = max(all_nodes) + 1 if all_nodes else 0
+
+            if num_nodes == 0 and not edges:
+                continue
+
+            x = torch.zeros(max(1, num_nodes), dtype=torch.long)
+
+            if edges:
+                if isinstance(edges[0], list) and len(edges[0]) == 2:
+                    edge_index = torch.tensor(edges, dtype=torch.long).t().contiguous()
+                elif len(edges) == 2 and isinstance(edges[0], list):
+                    edge_index = torch.tensor(edges, dtype=torch.long)
+                else:
+                    edge_index = torch.empty((2, 0), dtype=torch.long)
+            else:
+                edge_index = torch.empty((2, 0), dtype=torch.long)
+
+            edge_attr = None
 
         # Create data object
-        data = Data(x=x, edge_index=edge_index)
+        data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr)
         data.num_nodes = num_nodes
 
         # Add label if available
-        if has_labels and 'label' in item:
-            data.y = torch.tensor(item['label'], dtype=torch.long)
+        if has_labels:
+            if 'y' in item:
+                y_data = item['y']
+                # Handle nested list format [[4]] -> 4
+                if isinstance(y_data, list) and len(y_data) > 0:
+                    if isinstance(y_data[0], list):
+                        y_data = y_data[0][0] if y_data[0] else 0
+                    else:
+                        y_data = y_data[0]
+                data.y = torch.tensor(y_data, dtype=torch.long)
+            elif 'label' in item:
+                data.y = torch.tensor(item['label'], dtype=torch.long)
+            elif 'target' in item:
+                data.y = torch.tensor(item['target'], dtype=torch.long)
 
         # Store original index for GCOD if needed
         data.original_idx = i
 
         data_list.append(data)
 
+    print(f"Loaded {len(data_list)} graphs from {len(json_data)} total items")
     return data_list
 
 
