@@ -25,9 +25,9 @@ import torch.nn as nn
 sys.path.insert(0, 'source')
 
 try:
-    from preprocessor import MultiDatasetLoader
-    from utils import set_seed
-    from models_EDandBatch_norm import GNN
+    from source.preprocessor import MultiDatasetLoader
+    from source.utils import set_seed
+    from source.models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
