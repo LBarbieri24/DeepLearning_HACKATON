@@ -277,7 +277,7 @@ def get_arguments(dataset_name):
         'num_layer': 2,
         'emb_dim': 256,
         'drop_ratio': 0.3,
-        'virtual_node': True,
+        'virtual_node': False,
         'residual': True,
         'JK': "last",
         'edge_drop_ratio': 0.15,
@@ -328,10 +328,10 @@ def get_arguments(dataset_name):
 
     if dataset_name == 'D':
         args.update({
-            'num_layer': 2,
+            'num_layer': 3,
             'gce_q': 0.7,
             'emb_dim': 512,
-            'edge_drop_ratio' : 0.3,
+            'edge_drop_ratio' : 0.1,
             'drop_ratio': 0.6,
         })
 
