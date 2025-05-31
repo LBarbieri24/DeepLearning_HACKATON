@@ -48,17 +48,17 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
     baseline_func(dataset, train_path, test_path, baseline_choice)
 
 
-def run_baseline_gcod(dataset, train_path=None, test_path=None):
-    """Run the GCOD baseline with dataset-specific optimizations"""
-    from source.gcod_optimized_updated import run_optimized_gcod as gcod_func
-    gcod_func(dataset, train_path, test_path)
+# def run_baseline_gcod(dataset, train_path=None, test_path=None):
+#     """Run the GCOD baseline with dataset-specific optimizations"""
+#     from source.gcod_optimized_updated import run_optimized_gcod as gcod_func
+#     gcod_func(dataset, train_path, test_path)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Deep Learning Exam Hackathon - Graph Classification')
     parser.add_argument('--test_path', required=True, help='Path to test.json.gz file')
     parser.add_argument('--train_path', help='Path to train.json.gz file (optional)')
-    parser.add_argument('--baseline', choices=['ce', 'noisy', 'gce', 'gcod'],
+    parser.add_argument('--baseline', choices=['ce', 'noisy', 'gce'], # , 'gcod'
                         default='gce', help='Baseline choice (default: gce)')
 
     args = parser.parse_args()
@@ -87,7 +87,8 @@ def main():
 
     # Run appropriate baseline
     if args.baseline == 'gcod':
-        run_baseline_gcod(dataset, train_path, args.test_path)
+        # run_baseline_gcod(dataset, train_path, args.test_path)
+        print("no longer available gcod")
     else:
         run_baseline_deep(dataset, train_path, args.test_path, args.baseline)
 
