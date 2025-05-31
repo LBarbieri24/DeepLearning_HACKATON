@@ -283,6 +283,15 @@ def get_arguments(dataset_name):
         'num_checkpoints': 1,
         'val_split': 0.2,  # Validation split ratio
     }
+
+    # Dataset-specific optimizations
+    if dataset_name == 'B':
+        args.update({
+            'num_layer': 3,
+            'gce_q': 0.9,
+            'emb_dim': 128,
+        })
+
     return argparse.Namespace(**args)
 
 
