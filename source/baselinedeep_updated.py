@@ -250,7 +250,7 @@ def get_arguments(dataset_name):
         'dataset': dataset_name,
         'train_mode': 1,
         'num_layer': 2,
-        'emb_dim': 128,
+        'emb_dim': 256,
         'drop_ratio': 0.3,
         'virtual_node': True,
         'residual': True,
