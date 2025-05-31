@@ -177,6 +177,9 @@ class GCODLoss(nn.Module):
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
+        # Validate and clamp targets to [0, num_classes-1]
+        targets = torch.clamp(targets, 0, self.num_classes - 1)
+
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
         ce_loss_values = self.ce_loss(logits, targets)
@@ -190,6 +193,9 @@ class GCODLoss(nn.Module):
         batch_size = logits.size(0)
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
+
+        # Validate and clamp targets to [0, num_classes-1]
+        targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -211,6 +217,9 @@ class GCODLoss(nn.Module):
         batch_size = logits.size(0)
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
+
+        # Validate and clamp targets to [0, num_classes-1]
+        targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         diag_elements = (logits * y_onehot).sum(dim=1)
