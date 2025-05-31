@@ -284,7 +284,7 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
                 L2_for_u.backward()
                 with torch.no_grad():
                     u_batch.data -= args_namespace.gcod_lr_u * u_batch.grad.data
-                    u_batch.data.clamp_(0, 1)
+                    #u_batch.data.clamp_(0, 1)
 
             u_batch_optimized = u_batch.detach()
             pred_for_acc = output.argmax(dim=1)
