@@ -194,8 +194,13 @@ class GCODLoss(nn.Module):
         if batch_size == 0:
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
-        # Validate and clamp targets to [0, num_classes-1]
-        targets = torch.clamp(targets, 0, self.num_classes - 1)
+        # Robust target validation
+        targets = targets.flatten()  # Ensure 1D
+        targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
+        targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
+        targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
+                              targets)  # Cap at max
+        targets = targets.long()  # Ensure long type
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
