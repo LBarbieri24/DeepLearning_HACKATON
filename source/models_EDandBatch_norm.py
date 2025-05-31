@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.nn.inits import uniform
 from torch_geometric.utils import dropout_edge
 
-from conv import GNN_node, GNN_node_Virtualnode
+from source.conv import GNN_node, GNN_node_Virtualnode
 
 class GNN(torch.nn.Module):
 

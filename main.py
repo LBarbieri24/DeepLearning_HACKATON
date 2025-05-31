@@ -83,7 +83,7 @@ def main():
         print(f"Training with: {train_path}")
 
     print(f"Testing with: {args.test_path}")
-    print(f"Using baseline: {args.baseline}")
+    print(f"Using model: {args.baseline}")
 
     # Run appropriate baseline
     if args.baseline == 'gcod':
