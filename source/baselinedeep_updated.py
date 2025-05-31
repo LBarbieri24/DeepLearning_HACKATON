@@ -295,8 +295,10 @@ def get_arguments(dataset_name):
     if dataset_name == 'C':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.9,
-            'emb_dim': 128,
+            'gce_q': 0.8,
+            'emb_dim': 256,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.7,
         })
 
     if dataset_name == 'D':
@@ -304,6 +306,8 @@ def get_arguments(dataset_name):
             'num_layer': 3,
             'gce_q': 0.8,
             'emb_dim': 256,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.7,
         })
 
     return argparse.Namespace(**args)
