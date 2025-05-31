@@ -491,27 +491,60 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         if total_size == 0:
             raise ValueError("No valid training samples found after filtering")
 
-        train_size = max(1, int((1 - args.val_split) * total_size))
-        val_size = max(1, total_size - train_size)
+        # Ensure val_split is reasonable
+        if args.val_split <= 0 or args.val_split >= 1:
+             raise ValueError("val_split must be between 0 and 1 (exclusive)")
 
-        # Ensure we don't exceed total size
-        if train_size + val_size > total_size:
-            train_size = total_size - 1
-            val_size = 1
+        train_size = int((1 - args.val_split) * total_size)
+        val_size = total_size - train_size # Ensure all samples are used
 
-        train_dataset_list, val_dataset_list = random_split(all_train_data, [train_size, val_size])
+        # Handle cases where train_size or val_size might be 0 due to small total_size
+        if train_size == 0 or val_size == 0:
+            if total_size == 1: # Can't split 1 sample
+                print("WARNING: Only 1 sample in training data. Using it for training, no validation split.")
+                # Option 1: Use the single sample for training, skip validation (or handle differently)
+                # For GCOD u_idx, this becomes simple
+                train_dataset_split = all_train_data 
+                val_dataset_split = [] # Empty validation set
+                # OR:
+                # raise ValueError("Cannot split a single sample for train/validation.")
+            elif total_size > 1 and train_size == 0 : # val_split too high
+                train_size = 1
+                val_size = total_size - 1
+            elif total_size > 1 and val_size == 0 : # val_split too low
+                val_size = 1
+                train_size = total_size -1
+            else: # Should not happen if total_size > 0
+                 raise ValueError(f"Problem with train/val split calculation: total={total_size}, train_s={train_size}, val_s={val_size}")
 
-        print(f"Train samples: {len(train_dataset)}")
-        print(f"Val samples: {len(val_dataset)}")
+        temp_train_subset, temp_val_subset = random_split(all_train_data, [train_size, val_size])
 
-        # Re-index train_dataset_list for u_values_global
-        indexed_train_dataset = []
-        for i, data_sample in enumerate(train_dataset_list):
-            data_sample.u_idx = i # This new attribute will be used for u_values_global
-            indexed_train_dataset.append(data_sample)
+        # Convert Subsets to lists and add u_idx for training data
+        train_dataset_split = [] # This will be our primary train_dataset
+        for i, data_sample in enumerate(temp_train_subset):
+            data_sample.u_idx = i  # Assign new u_idx for training samples
+            train_dataset_split.append(data_sample)
+        
+        # val_dataset_split can be just the list from the subset
+        val_dataset_split = [data_sample for data_sample in temp_val_subset]
 
-        train_loader = DataLoader(indexed_train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_dataset_list, batch_size=args.batch_size, shuffle=False, num_workers=0)
+
+        print(f"Train samples: {len(train_dataset_split)}") # Use the correct variable name
+        print(f"Val samples: {len(val_dataset_split)}")   # Use the correct variable name
+
+        # Ensure train_dataset_split is not empty before creating DataLoader
+        if not train_dataset_split:
+            raise ValueError("Training dataset is empty after split. Check val_split and total_size.")
+        
+        train_loader = DataLoader(train_dataset_split, batch_size=args.batch_size, shuffle=True, num_workers=0)
+        
+        # Ensure val_dataset_split is not empty if you intend to use it for validation during training
+        if val_dataset_split:
+            val_loader = DataLoader(val_dataset_split, batch_size=args.batch_size, shuffle=False, num_workers=0)
+        else:
+            val_loader = None # Handle case with no validation data
+            print("WARNING: Validation dataset is empty. Validation steps will be skipped or may error.")
+
 
         # Initialize model
         model = GNN(num_class=6,
@@ -543,7 +576,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
                 patience=args.patience_lr, min_lr=args.min_lr)
 
         # Initialize u_values for GCOD
-        u_values_for_train = torch.zeros(len(indexed_train_dataset), device=device, requires_grad=False)
+        u_values_for_train = torch.zeros(len(train_dataset_split), device=device, requires_grad=False) 
         print(f"Initialized u_values_for_train with size: {u_values_for_train.size()}")
 
         # Training loop with early stopping
