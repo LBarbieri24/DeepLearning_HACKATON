@@ -14,6 +14,6 @@ def gzip_folder(folder_path, output_file):
     print(f"Folder '{folder_path}' has been compressed into '{output_file}'")
 
 # Example usage
-folder_path = "C:/Users/Leonardo/Documents/UNIVERSITA'/Sapienza/deep learning/DeepLearningChallenge/submission"            # Path to the folder you want to compress
-output_file = "C:/Users/Leonardo/Documents/UNIVERSITA'/Sapienza/deep learning/DeepLearningChallenge/submission.gz"         # Output .gz file name
+folder_path = "C:/Users/Leonardo/PycharmProjects/HACKATON/submission"            # Path to the folder you want to compress
+output_file = "C:/Users/Leonardo/PycharmProjects/HACKATON/submission.gz"         # Output .gz file name
 gzip_folder(folder_path, output_file)
