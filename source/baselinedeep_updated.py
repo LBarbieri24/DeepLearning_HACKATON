@@ -344,7 +344,7 @@ def get_arguments(dataset_name):
     if dataset_name == 'D':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.4,
+            'gce_q': 0.3,
             'emb_dim': 512,
             'edge_drop_ratio' : 0.2,
             'drop_ratio': 0.7,
