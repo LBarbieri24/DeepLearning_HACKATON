@@ -260,6 +260,9 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
         if current_baseline_mode == 4:  # GCOD specific logic
             batch_indices = data.original_idx.to(device=device, dtype=torch.long)
 
+            # Ensure indices are within valid range
+            batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
+
             if u_values_global.device != device:
                 u_batch_cpu = u_values_global[batch_indices.cpu()].clone().detach()
                 u_batch = u_batch_cpu.to(device).requires_grad_(True)
