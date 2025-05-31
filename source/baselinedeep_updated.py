@@ -218,7 +218,12 @@ def save_training_logs(train_losses, train_accuracies, val_losses, val_accuracie
     """Save training metrics to text files instead of plots"""
     os.makedirs(output_dir, exist_ok=True)
 
-def plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, output_dir):
+def plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, output_dir):
+    """Plot training progress with proper error handling"""
+    if not train_losses or not learning_rates:
+        print("Warning: No data to plot")
+        return
+        
     epochs = range(1, len(train_losses) + 1)
     plt.figure(figsize=(15, 6))
 
@@ -240,12 +245,20 @@ def plot_training_progress(train_losses, train_accuracies, val_losses, val_accur
     plt.legend()
     plt.grid(True)
 
-    # Save detailed metrics
+    # Save detailed metrics with proper bounds checking
+    os.makedirs(output_dir, exist_ok=True)
     metrics_file = os.path.join(output_dir, "training_metrics.txt")
     with open(metrics_file, 'w') as f:
         f.write("Epoch,Train_Loss,Train_Acc,Val_Loss,Val_Acc,Learning_Rate\n")
         for i in range(len(train_losses)):
-            lr = learning_rates[i] if i < len(learning_rates) else learning_rates[-1]
+            # Safe access to learning_rates with bounds checking
+            if i < len(learning_rates):
+                lr = learning_rates[i]
+            elif learning_rates:  # Use last available LR if list is shorter
+                lr = learning_rates[-1]
+            else:  # Fallback if learning_rates is empty
+                lr = 0.0
+                
             f.write(f"{i + 1},{train_losses[i]:.6f},{train_accuracies[i]:.6f},"
                     f"{val_losses[i]:.6f},{val_accuracies[i]:.6f},{lr:.2e}\n")
 
@@ -258,11 +271,13 @@ def plot_training_progress(train_losses, train_accuracies, val_losses, val_accur
         f.write(f"Best Val Accuracy: {max(val_accuracies):.4f}\n")
         f.write(f"Final Train Loss: {train_losses[-1]:.4f}\n")
         f.write(f"Final Val Loss: {val_losses[-1]:.4f}\n")
-        f.write(f"Final Learning Rate: {learning_rates[-1]:.2e}\n")
+        if learning_rates:
+            f.write(f"Final Learning Rate: {learning_rates[-1]:.2e}\n")
+        else:
+            f.write("Final Learning Rate: N/A\n")
 
     print(f"Training logs saved to {output_dir}")
 
-    os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "training_progress.png"))
     plt.show()
@@ -277,14 +292,14 @@ def get_arguments(dataset_name):
         'num_layer': 2,
         'emb_dim': 256,
         'drop_ratio': 0.3,
-        'virtual_node': False,
+        'virtual_node': True,
         'residual': True,
         'JK': "last",
         'edge_drop_ratio': 0.15,
         'batch_norm': True,
         'graph_pooling': "mean",
         'batch_size': 64,
-        'epochs': 300,
+        'epochs': 10,
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
         'gce_q': 0.9,
@@ -319,20 +334,20 @@ def get_arguments(dataset_name):
 
     if dataset_name == 'C':
         args.update({
-            'num_layer': 2,
-            'gce_q': 0.9,
-            'emb_dim': 512,
-            'edge_drop_ratio' : 0.3,
-            'drop_ratio': 0.7,
+            'num_layer': 3,
+            'gce_q': 0.6,
+            'emb_dim': 218,
+            'edge_drop_ratio' : 0.1,
+            'drop_ratio': 0.4,
         })
 
     if dataset_name == 'D':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.7,
+            'gce_q': 0.4,
             'emb_dim': 512,
-            'edge_drop_ratio' : 0.1,
-            'drop_ratio': 0.6,
+            'edge_drop_ratio' : 0.2,
+            'drop_ratio': 0.7,
         })
 
     return argparse.Namespace(**args)
@@ -450,8 +465,10 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
         learning_rates = []
 
         for epoch in range(args.epochs):
+            # Capture learning rate at the start of epoch
             current_lr = optimizer.param_groups[0]['lr']
             learning_rates.append(current_lr)
+            
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
                 save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_epoch", current_epoch=epoch,
@@ -476,32 +493,37 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
             else:
                 patience_counter += 1
 
-            # Learning rate scheduling with logging
+            # Learning rate scheduling with proper logging
             if scheduler is not None:
-                old_lr = current_lr
-                #current_lr = optimizer.param_groups[0]['lr']
+                old_lr = optimizer.param_groups[0]['lr']  # Get current LR before scheduler step
                 scheduler.step(val_loss)
-                new_lr = optimizer.param_groups[0]['lr']
+                new_lr = optimizer.param_groups[0]['lr']   # Get LR after scheduler step
 
                 if new_lr != old_lr:
                     print(f"Learning rate reduced: {old_lr:.2e} → {new_lr:.2e}")
-                # if new_lr != current_lr:
-                #     print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
-                current_lr = optimizer.param_groups[0]['lr']
+                current_lr_display = optimizer.param_groups[0]['lr']
                 print(
-                    f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}, Val F1={val_f1:.4f}, LR={current_lr:.2e}, Patience={patience_counter}")
+                    f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}, Val F1={val_f1:.4f}, LR={current_lr_display:.2e}, Patience={patience_counter}")
 
             # Early stopping check
             if args.early_stopping and patience_counter >= args.patience:
                 print(f"Early stopping triggered after {epoch + 1} epochs")
                 break
 
+        # Plot training progress - only if we have data
+        if train_losses and learning_rates:
+            os.makedirs('logs', exist_ok=True)
+            save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
+            plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, 'logs')
+        else:
+            print("Warning: No training data to plot")
+
         # Plot training progress
         os.makedirs('logs', exist_ok=True)
         save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
-        plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, 'logs')
+        plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
 
     else:
         # Testing only mode
