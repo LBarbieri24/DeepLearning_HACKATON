@@ -284,7 +284,7 @@ def get_arguments(dataset_name):
         'batch_norm': True,
         'graph_pooling': "mean",
         'batch_size': 64,
-        'epochs': 10,
+        'epochs': 250,
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
         'gce_q': 0.9,
