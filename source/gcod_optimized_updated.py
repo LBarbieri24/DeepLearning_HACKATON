@@ -178,7 +178,7 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Validate and clamp targets to [0, num_classes-1]
-        #targets = torch.clamp(targets, 0, self.num_classes - 1)
+        targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -195,12 +195,12 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Robust target validation
-        # targets = targets.flatten()  # Ensure 1D
-        # targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
-        # targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
-        # targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
-        #                       targets)  # Cap at max
-        # targets = targets.long()  # Ensure long type
+        targets = targets.flatten()  # Ensure 1D
+        targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
+        targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
+        targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
+                              targets)  # Cap at max
+        targets = targets.long()  # Ensure long type
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -209,17 +209,12 @@ class GCODLoss(nn.Module):
         L2_reconstruction = (1.0 / self.num_classes) * torch.norm(term, p='fro').pow(2)
 
         # Only add regularization if lambda_r > 0
-        # if self.lambda_r > 0:
-        #     current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
-        #     u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
-        #     L2 = L2_reconstruction + u_reg
-        # else:
-        #     L2 = L2_reconstruction
-        # return L2
-        current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
-        u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
-
-        L2 = L2_reconstruction + u_reg
+        if self.lambda_r > 0:
+            current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
+            u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
+            L2 = L2_reconstruction + u_reg
+        else:
+            L2 = L2_reconstruction
         return L2
 
     def compute_L3(self, logits, targets, u_params, l3_coeff):
@@ -229,7 +224,7 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Validate and clamp targets to [0, num_classes-1]
-        #targets = torch.clamp(targets, 0, self.num_classes - 1)
+        targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         diag_elements = (logits * y_onehot).sum(dim=1)
@@ -263,10 +258,10 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
         output = model(data)
 
         if current_baseline_mode == 4:  # GCOD specific logic
-            batch_indices = data.u_idx.to(device=device, dtype=torch.long)
+            batch_indices = data.original_idx.to(device=device, dtype=torch.long)
 
             # Ensure indices are within valid range
-            #batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
+            batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
 
             if u_values_global.device != device:
                 u_batch_cpu = u_values_global[batch_indices.cpu()].clone().detach()
@@ -284,7 +279,7 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
                 L2_for_u.backward()
                 with torch.no_grad():
                     u_batch.data -= args_namespace.gcod_lr_u * u_batch.grad.data
-                    #u_batch.data.clamp_(0, 1)
+                    u_batch.data.clamp_(0, 1)
 
             u_batch_optimized = u_batch.detach()
             pred_for_acc = output.argmax(dim=1)
@@ -380,33 +375,31 @@ def save_predictions(predictions, dataset_name):
     print(f"Predictions saved to {output_csv_path}")
 
 
-def plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, output_dir):
-    epochs = range(1, len(train_losses) + 1)
-    plt.figure(figsize=(15, 6))
-
-    plt.subplot(1, 2, 1)
-    plt.plot(epochs, train_losses, label="Training Loss", color='blue', marker='o')
-    plt.plot(epochs, val_losses, label="Validation Loss", color='red', marker='s')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training and Validation Loss per Epoch')
-    plt.legend()
-    plt.grid(True)
-
-    plt.subplot(1, 2, 2)
-    plt.plot(epochs, train_accuracies, label="Training Accuracy", color='green', marker='o')
-    plt.plot(epochs, val_accuracies, label="Validation Accuracy", color='orange', marker='s')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Training and Validation Accuracy per Epoch')
-    plt.legend()
-    plt.grid(True)
-
+def save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, output_dir):
+    """Save training metrics to text files instead of plots"""
     os.makedirs(output_dir, exist_ok=True)
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "training_progress.png"))
-    plt.show()
-    plt.close()
+
+    # Save detailed metrics
+    metrics_file = os.path.join(output_dir, "training_metrics.txt")
+    with open(metrics_file, 'w') as f:
+        f.write("Epoch,Train_Loss,Train_Acc,Val_Loss,Val_Acc,Learning_Rate\n")
+        for i in range(len(train_losses)):
+            lr = learning_rates[i] if i < len(learning_rates) else learning_rates[-1]
+            f.write(f"{i + 1},{train_losses[i]:.6f},{train_accuracies[i]:.6f},"
+                    f"{val_losses[i]:.6f},{val_accuracies[i]:.6f},{lr:.2e}\n")
+
+    # Save summary
+    summary_file = os.path.join(output_dir, "training_summary.txt")
+    with open(summary_file, 'w') as f:
+        f.write("=== TRAINING SUMMARY ===\n")
+        f.write(f"Total Epochs: {len(train_losses)}\n")
+        f.write(f"Best Train Accuracy: {max(train_accuracies):.4f}\n")
+        f.write(f"Best Val Accuracy: {max(val_accuracies):.4f}\n")
+        f.write(f"Final Train Loss: {train_losses[-1]:.4f}\n")
+        f.write(f"Final Val Loss: {val_losses[-1]:.4f}\n")
+        f.write(f"Final Learning Rate: {learning_rates[-1]:.2e}\n")
+
+    print(f"Training logs saved to {output_dir}")
 
 
 def get_optimized_arguments(dataset_name):
@@ -491,60 +484,21 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         if total_size == 0:
             raise ValueError("No valid training samples found after filtering")
 
-        # Ensure val_split is reasonable
-        if args.val_split <= 0 or args.val_split >= 1:
-             raise ValueError("val_split must be between 0 and 1 (exclusive)")
+        train_size = max(1, int((1 - args.val_split) * total_size))
+        val_size = max(1, total_size - train_size)
 
-        train_size = int((1 - args.val_split) * total_size)
-        val_size = total_size - train_size # Ensure all samples are used
+        # Ensure we don't exceed total size
+        if train_size + val_size > total_size:
+            train_size = total_size - 1
+            val_size = 1
 
-        # Handle cases where train_size or val_size might be 0 due to small total_size
-        if train_size == 0 or val_size == 0:
-            if total_size == 1: # Can't split 1 sample
-                print("WARNING: Only 1 sample in training data. Using it for training, no validation split.")
-                # Option 1: Use the single sample for training, skip validation (or handle differently)
-                # For GCOD u_idx, this becomes simple
-                train_dataset_split = all_train_data 
-                val_dataset_split = [] # Empty validation set
-                # OR:
-                # raise ValueError("Cannot split a single sample for train/validation.")
-            elif total_size > 1 and train_size == 0 : # val_split too high
-                train_size = 1
-                val_size = total_size - 1
-            elif total_size > 1 and val_size == 0 : # val_split too low
-                val_size = 1
-                train_size = total_size -1
-            else: # Should not happen if total_size > 0
-                 raise ValueError(f"Problem with train/val split calculation: total={total_size}, train_s={train_size}, val_s={val_size}")
+        train_dataset, val_dataset = random_split(all_train_data, [train_size, val_size])
 
-        temp_train_subset, temp_val_subset = random_split(all_train_data, [train_size, val_size])
+        print(f"Train samples: {len(train_dataset)}")
+        print(f"Val samples: {len(val_dataset)}")
 
-        # Convert Subsets to lists and add u_idx for training data
-        train_dataset_split = [] # This will be our primary train_dataset
-        for i, data_sample in enumerate(temp_train_subset):
-            data_sample.u_idx = i  # Assign new u_idx for training samples
-            train_dataset_split.append(data_sample)
-        
-        # val_dataset_split can be just the list from the subset
-        val_dataset_split = [data_sample for data_sample in temp_val_subset]
-
-
-        print(f"Train samples: {len(train_dataset_split)}") # Use the correct variable name
-        print(f"Val samples: {len(val_dataset_split)}")   # Use the correct variable name
-
-        # Ensure train_dataset_split is not empty before creating DataLoader
-        if not train_dataset_split:
-            raise ValueError("Training dataset is empty after split. Check val_split and total_size.")
-        
-        train_loader = DataLoader(train_dataset_split, batch_size=args.batch_size, shuffle=True, num_workers=0)
-        
-        # Ensure val_dataset_split is not empty if you intend to use it for validation during training
-        if val_dataset_split:
-            val_loader = DataLoader(val_dataset_split, batch_size=args.batch_size, shuffle=False, num_workers=0)
-        else:
-            val_loader = None # Handle case with no validation data
-            print("WARNING: Validation dataset is empty. Validation steps will be skipped or may error.")
-
+        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
         # Initialize model
         model = GNN(num_class=6,
@@ -576,7 +530,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
                 patience=args.patience_lr, min_lr=args.min_lr)
 
         # Initialize u_values for GCOD
-        u_values_for_train = torch.zeros(len(train_dataset_split), device=device, requires_grad=False) 
+        u_values_for_train = torch.zeros(len(train_dataset), device=device, requires_grad=False)
         print(f"Initialized u_values_for_train with size: {u_values_for_train.size()}")
 
         # Training loop with early stopping
@@ -587,8 +541,12 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
 
         train_losses, train_accuracies = [], []
         val_losses, val_accuracies = [], []
+        learning_rates = []
 
         for epoch in range(args.epochs):
+            current_lr = optimizer.param_groups[0]['lr']
+            learning_rates.append(current_lr)
+
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
                 save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_gcod_epoch", current_epoch=epoch,
@@ -615,12 +573,12 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
 
             # Learning rate scheduling with logging
             if scheduler is not None:
-                current_lr = optimizer.param_groups[0]['lr']
+                old_lr = current_lr
                 scheduler.step(val_acc)
                 new_lr = optimizer.param_groups[0]['lr']
 
-                if new_lr != current_lr:
-                    print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
+                if new_lr != old_lr:
+                    print(f"Learning rate reduced: {old_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
                 current_lr = optimizer.param_groups[0]['lr']
@@ -632,9 +590,9 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
                 print(f"Early stopping triggered after {epoch + 1} epochs")
                 break
 
-        # Plot training progress
+        # Save training logs
         os.makedirs('logs', exist_ok=True)
-        plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, 'logs')
+        save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
 
     else:
         # Testing only mode
