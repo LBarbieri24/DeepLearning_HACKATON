@@ -292,6 +292,20 @@ def get_arguments(dataset_name):
             'emb_dim': 128,
         })
 
+    if dataset_name == 'C':
+        args.update({
+            'num_layer': 3,
+            'gce_q': 0.9,
+            'emb_dim': 128,
+        })
+
+    if dataset_name == 'D':
+        args.update({
+            'num_layer': 3,
+            'gce_q': 0.8,
+            'emb_dim': 256,
+        })
+
     return argparse.Namespace(**args)
 
 
