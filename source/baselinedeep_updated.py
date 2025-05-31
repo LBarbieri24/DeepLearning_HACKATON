@@ -295,18 +295,18 @@ def get_arguments(dataset_name):
     if dataset_name == 'C':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.8,
-            'emb_dim': 256,
-            'edge_drop_ratio' : 0.3,
-            'drop_ratio': 0.7,
+            'gce_q': 0.7,
+            'emb_dim': 128,
+            'edge_drop_ratio' : 0.1,
+            'drop_ratio': 0.4,
         })
 
     if dataset_name == 'D':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.8,
-            'emb_dim': 256,
-            'edge_drop_ratio' : 0.3,
+            'gce_q': 0.4,
+            'emb_dim': 128,
+            'edge_drop_ratio' : 0.2,
             'drop_ratio': 0.7,
         })
 
