@@ -25,9 +25,9 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, 'source')
 
 try:
-    from preprocessor import MultiDatasetLoader
-    from utils import set_seed
-    from models_EDandBatch_norm import GNN
+    from source.preprocessor import MultiDatasetLoader
+    from source.utils import set_seed
+    from source.models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
@@ -48,10 +48,6 @@ def load_json_gz(file_path):
 def json_to_torch_geometric(json_data, has_labels=True):
     """Convert JSON data to PyTorch Geometric Data objects"""
     data_list = []
-
-    # Debug: Print first few items to understand structure
-    if len(json_data) > 0:
-        print(f"First item keys: {list(json_data[0].keys())}")
 
     for i, item in enumerate(json_data):
         # Handle the actual JSON structure: edge_index, edge_attr, num_nodes, y
