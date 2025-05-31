@@ -1,4 +1,7 @@
 # HACKATON
+
+## Pipeline Overview
+
 <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -13,6 +16,9 @@
       <stop offset="0%" style="stop-color:#DC2626;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#EA580C;stop-opacity:1" />
     </linearGradient>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#374151"/>
+    </marker>
   </defs>
   
   <!-- Title -->
@@ -112,7 +118,7 @@
   <!-- GCE Loss -->
   <rect x="700" y="110" width="240" height="80" rx="5" fill="#ECFDF5" stroke="#10B981" stroke-width="2"/>
   <text x="820" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#065F46">Generalized Cross-Entropy (GCE)</text>
-  <text x="820" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#047857">For Datasets A & B</text>
+  <text x="820" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#047857">For Datasets A &amp; B</text>
   <text x="820" y="165" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#065F46">q ∈ [0.7, 0.9]</text>
   <text x="820" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">Down-weights noisy samples</text>
   
@@ -120,7 +126,7 @@
   <rect x="700" y="210" width="240" height="80" rx="5" fill="#FEF2F2" stroke="#EF4444" stroke-width="2"/>
   <text x="820" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#991B1B">Graph Centroid Outlier</text>
   <text x="820" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#991B1B">Discounting (GCOD)</text>
-  <text x="820" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#DC2626">For Datasets C & D</text>
+  <text x="820" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#DC2626">For Datasets C &amp; D</text>
   <text x="820" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#6B7280">Dynamic confidence scoring</text>
   
   <!-- Dataset Strategy -->
@@ -168,38 +174,46 @@
   
   <!-- Arrow 3 -->
   <path d="M 980 270 L 1020 240" stroke="#374151" stroke-width="3" fill="none" marker-end="url(#arrowhead)"/>
-  
-  <!-- Arrow markers -->
-  <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#374151"/>
-    </marker>
-  </defs>
 </svg>
+
+## Approach
+
 This repository contains the final submission for the Deep Learning Hackathon (Sapienza University, MSc in Artificial Intelligence and Robotics). It details our approach to graph classification in the presence of noisy labels.
 
 Starting from the baseline structure, our solution builds upon a GNN architecture centered around Graph Isomorphism Network (GIN) convolutions. 
+
+### Key Techniques for Robustness
+
 To enhance model performance, stability, and robustness to the noisy dataset, we incorporated several techniques:
-- Batch Normalization: Applied after GIN layers and optionally before graph pooling to stabilize training dynamics.
-Dropout: Utilized with relatively high probabilities on node embeddings to mitigate overfitting, especially given the noisy labels.
-- Residual Connections: To facilitate easier training of deeper GNNs by improving gradient flow.
-- Jumping Knowledge (JK) Connections: Configured as "last" or "sum" to effectively aggregate information from different depths of the GNN.
-- Virtual Node: Integrated to enhance global information propagation across each graph, allowing the model to learn more comprehensive graph representations.
-- Edge Dropping: Employed during training as a form of data augmentation and regularization, encouraging the network to learn more robust features by randomly removing edges.
+
+- **Batch Normalization**: Applied after GIN layers and optionally before graph pooling to stabilize training dynamics
+- **Dropout**: Utilized with relatively high probabilities on node embeddings to mitigate overfitting, especially given the noisy labels
+- **Residual Connections**: To facilitate easier training of deeper GNNs by improving gradient flow
+- **Jumping Knowledge (JK) Connections**: Configured as "last" or "sum" to effectively aggregate information from different depths of the GNN
+- **Virtual Node**: Integrated to enhance global information propagation across each graph, allowing the model to learn more comprehensive graph representations
+- **Edge Dropping**: Employed during training as a form of data augmentation and regularization, encouraging the network to learn more robust features by randomly removing edges
+
+### Loss Function Strategy
 
 A critical aspect of our approach was the selection of loss functions tailored to handle label noise. Our empirical evaluations led to the following strategy:
-- For Datasets A and B, Generalized Cross-Entropy (GCE) loss (with q values typically around 0.7-0.9) yielded superior performance. GCE is known for its robustness to noise by down-weighting the contribution of potentially mislabeled samples with high loss.
-- For Datasets C and D, we implemented and utilized the Graph Centroid Outlier Discounting (GCOD) loss, as proposed by Wani et al. (2023) in "Robustness of Graph Classification: failure modes, causes, and noise-resistant loss in Graph Neural Networks". GCOD dynamically estimates per-sample confidence scores to re-weight the training objective, proving more effective for the noise characteristics observed in these datasets.
+
+- **For Datasets A and B**: Generalized Cross-Entropy (GCE) loss (with q values typically around 0.7-0.9) yielded superior performance. GCE is known for its robustness to noise by down-weighting the contribution of potentially mislabeled samples with high loss.
+
+- **For Datasets C and D**: We implemented and utilized the Graph Centroid Outlier Discounting (GCOD) loss, as proposed by Wani et al. (2023) in "Robustness of Graph Classification: failure modes, causes, and noise-resistant loss in Graph Neural Networks". GCOD dynamically estimates per-sample confidence scores to re-weight the training objective, proving more effective for the noise characteristics observed in these datasets.
+
+### Hyperparameters
 
 While specific hyperparameter configurations varied slightly per dataset to optimize performance, several common settings emerged:
-- Network Depth: 2 to 3 GIN layers.
-- Embedding Dimension: Ranged from 128 to 218.
-- Batch Size: Consistently set to 64.
-- Optimizer & Learning Rate: Adam optimizer with an initial learning rate of 5e-3, managed by a ReduceLROnPlateau learning rate scheduler to adjust learning based on validation performance.
 
-Repository structure:
-- main.py: Main entry point for training and testing.
-- source/baselinedeep_updated.py: Implements GCE and other standard baselines.
-- source/gcod_optimized_updated.py: Implements the GCOD baseline.
-- source/models_EDandBatch_norm.py: Defines the core GNN architecture.
-- source/conv.py: Contains GIN/GCN convolution layer implementations.
+- **Network Depth**: 2 to 3 GIN layers
+- **Embedding Dimension**: Ranged from 128 to 218
+- **Batch Size**: Consistently set to 64
+- **Optimizer & Learning Rate**: Adam optimizer with an initial learning rate of 5e-3, managed by a ReduceLROnPlateau learning rate scheduler to adjust learning based on validation performance
+
+## Repository Structure
+
+- `main.py`: Main entry point for training and testing
+- `source/baselinedeep_updated.py`: Implements GCE and other standard baselines
+- `source/gcod_optimized_updated.py`: Implements the GCOD baseline
+- `source/models_EDandBatch_norm.py`: Defines the core GNN architecture
+- `source/conv.py`: Contains GIN/GCN convolution layer implementations
