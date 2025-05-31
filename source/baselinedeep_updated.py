@@ -25,9 +25,9 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, 'source')
 
 try:
-    from source.preprocessor import MultiDatasetLoader
-    from source.utils import set_seed
-    from source.models_EDandBatch_norm import GNN
+    from preprocessor import MultiDatasetLoader
+    from utils import set_seed
+    from models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
@@ -167,8 +167,9 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
         correct += (pred == data.y).sum().item()
         total += data.y.size(0)
 
-    if save_checkpoints:
-        checkpoint_file = f"{checkpoint_path}_epoch_{current_epoch + 1}.pth"
+    if save_checkpoints and (current_epoch + 1) % 10 == 0:
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        checkpoint_file = f"{checkpoint_path}_{current_epoch + 1}.pth"
         torch.save(model.state_dict(), checkpoint_file)
         print(f"Checkpoint saved at {checkpoint_file}")
 
@@ -402,7 +403,7 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
         for epoch in range(args.epochs):
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
-                save_checkpoints=False, checkpoint_path="", current_epoch=epoch,
+                save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_epoch", current_epoch=epoch,
                 scheduler=scheduler, args=args)
 
             val_loss, val_acc, val_f1 = evaluate(

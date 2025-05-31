@@ -25,9 +25,9 @@ import torch.nn as nn
 sys.path.insert(0, 'source')
 
 try:
-    from source.preprocessor import MultiDatasetLoader
-    from source.utils import set_seed
-    from source.models_EDandBatch_norm import GNN
+    from preprocessor import MultiDatasetLoader
+    from utils import set_seed
+    from models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
@@ -280,8 +280,9 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
         correct_preds += (pred_final == data.y).sum().item()
         total_samples_processed += data.y.size(0)
 
-    if save_checkpoints:
-        checkpoint_file = f"{checkpoint_path}_epoch_{current_epoch + 1}.pth"
+    if save_checkpoints and (current_epoch + 1) % 10 == 0:
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        checkpoint_file = f"{checkpoint_path}_{current_epoch + 1}.pth"
         torch.save(model.state_dict(), checkpoint_file)
         print(f"Checkpoint saved at {checkpoint_file}")
 
@@ -511,7 +512,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         for epoch in range(args.epochs):
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
-                save_checkpoints=False, checkpoint_path="", current_epoch=epoch,
+                save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_gcod_epoch", current_epoch=epoch,
                 args_namespace=args, u_values_global=u_values_for_train,
                 current_baseline_mode=args.baseline_mode, scheduler=scheduler)
 
