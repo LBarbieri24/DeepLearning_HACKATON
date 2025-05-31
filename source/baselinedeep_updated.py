@@ -288,7 +288,7 @@ def get_arguments(dataset_name):
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
         'gce_q': 0.9,
-        'initial_lr': 5e-3,
+        'initial_lr': 6e-3,
         'best_model_criteria': 'f1',
         'use_scheduler': True,
         'scheduler_type': 'ReduceLROnPlateau',
@@ -300,7 +300,7 @@ def get_arguments(dataset_name):
         'T_max': 50,
         'eta_min': 1e-6,
         'gamma_exp': 0.95,
-        'max_lr': 1e-3,
+        'max_lr': 5e-3,
         'pct_start': 0.3,
         'early_stopping': True,
         'patience': 25,
