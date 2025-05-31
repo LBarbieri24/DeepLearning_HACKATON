@@ -25,9 +25,9 @@ import torch.nn as nn
 sys.path.insert(0, 'source')
 
 try:
-    from source.preprocessor import MultiDatasetLoader
-    from source.utils import set_seed
-    from source.models_EDandBatch_norm import GNN
+    from preprocessor import MultiDatasetLoader
+    from utils import set_seed
+    from models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
@@ -36,9 +36,13 @@ except ImportError as e:
 
 
 def load_json_gz(file_path):
-    """Load data from .json.gz file"""
-    with gzip.open(file_path, 'rt') as f:
-        return json.load(f)
+    """Load data from .json.gz or .json file"""
+    if file_path.endswith('.gz'):
+        with gzip.open(file_path, 'rt') as f:
+            return json.load(f)
+    else:
+        with open(file_path, 'r') as f:
+            return json.load(f)
 
 
 def json_to_torch_geometric(json_data, has_labels=True):
@@ -495,8 +499,9 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         u_values_for_train = torch.zeros(len(train_dataset), device=device, requires_grad=False)
         print(f"Initialized u_values_for_train with size: {u_values_for_train.size()}")
 
-        # Training loop
+        # Training loop with early stopping
         best_val_accuracy = 0.0
+        patience_counter = 0
         os.makedirs('checkpoints', exist_ok=True)
         best_model_path = f'checkpoints/best_model_{dataset}_optimized.pth'
 
@@ -519,16 +524,33 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
             val_losses.append(val_loss)
             val_accuracies.append(val_acc)
 
+            # Early stopping logic
             if val_acc > best_val_accuracy:
                 best_val_accuracy = val_acc
+                patience_counter = 0
                 torch.save(model.state_dict(), best_model_path)
                 print(f"★ New best accuracy! {val_acc:.4f}")
+            else:
+                patience_counter += 1
 
+            # Learning rate scheduling with logging
             if scheduler is not None:
+                current_lr = optimizer.param_groups[0]['lr']
                 scheduler.step(val_acc)
+                new_lr = optimizer.param_groups[0]['lr']
+
+                if new_lr != current_lr:
+                    print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}")
+                current_lr = optimizer.param_groups[0]['lr']
+                print(
+                    f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}, LR={current_lr:.2e}, Patience={patience_counter}")
+
+            # Early stopping check
+            if args.early_stopping and patience_counter >= args.patience:
+                print(f"Early stopping triggered after {epoch + 1} epochs")
+                break
 
         # Plot training progress
         os.makedirs('logs', exist_ok=True)

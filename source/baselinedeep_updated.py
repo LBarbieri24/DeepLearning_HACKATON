@@ -25,9 +25,9 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, 'source')
 
 try:
-    from source.preprocessor import MultiDatasetLoader
-    from source.utils import set_seed
-    from source.models_EDandBatch_norm import GNN
+    from preprocessor import MultiDatasetLoader
+    from utils import set_seed
+    from models_EDandBatch_norm import GNN
 
     print("Successfully imported modules.")
 except ImportError as e:
@@ -36,14 +36,22 @@ except ImportError as e:
 
 
 def load_json_gz(file_path):
-    """Load data from .json.gz file"""
-    with gzip.open(file_path, 'rt') as f:
-        return json.load(f)
+    """Load data from .json.gz or .json file"""
+    if file_path.endswith('.gz'):
+        with gzip.open(file_path, 'rt') as f:
+            return json.load(f)
+    else:
+        with open(file_path, 'r') as f:
+            return json.load(f)
 
 
 def json_to_torch_geometric(json_data, has_labels=True):
     """Convert JSON data to PyTorch Geometric Data objects"""
     data_list = []
+
+    # Debug: Print first few items to understand structure
+    if len(json_data) > 0:
+        print(f"First item keys: {list(json_data[0].keys())}")
 
     for i, item in enumerate(json_data):
         # Handle the actual JSON structure: edge_index, edge_attr, num_nodes, y
@@ -290,7 +298,7 @@ class NoisyCrossEntropyLoss(torch.nn.Module):
     def forward(self, logits, targets):
         losses = self.ce(logits, targets)
         weights = (1 - self.p) + self.p * (
-                    1 - torch.nn.functional.one_hot(targets, num_classes=logits.size(1)).float().sum(dim=1))
+                1 - torch.nn.functional.one_hot(targets, num_classes=logits.size(1)).float().sum(dim=1))
         return (losses * weights).mean()
 
 
@@ -382,8 +390,9 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
                 optimizer, mode='min', factor=args.factor,
                 patience=args.patience_lr, min_lr=args.min_lr)
 
-        # Training loop
+        # Training loop with early stopping
         best_val_metric = 0.0
+        patience_counter = 0
         os.makedirs('checkpoints', exist_ok=True)
         best_model_path = f'checkpoints/best_model_{dataset}.pth'
 
@@ -406,16 +415,33 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
             val_losses.append(val_loss)
             val_accuracies.append(val_acc)
 
+            # Early stopping logic
             if current_metric > best_val_metric:
                 best_val_metric = current_metric
+                patience_counter = 0
                 torch.save(model.state_dict(), best_model_path)
                 print(f"★ New best {args.best_model_criteria.upper()}! {current_metric:.4f}")
+            else:
+                patience_counter += 1
 
+            # Learning rate scheduling with logging
             if scheduler is not None:
+                current_lr = optimizer.param_groups[0]['lr']
                 scheduler.step(val_loss)
+                new_lr = optimizer.param_groups[0]['lr']
+
+                if new_lr != current_lr:
+                    print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
-                print(f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}, Val F1={val_f1:.4f}")
+                current_lr = optimizer.param_groups[0]['lr']
+                print(
+                    f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Acc={val_acc:.4f}, Val F1={val_f1:.4f}, LR={current_lr:.2e}, Patience={patience_counter}")
+
+            # Early stopping check
+            if args.early_stopping and patience_counter >= args.patience:
+                print(f"Early stopping triggered after {epoch + 1} epochs")
+                break
 
         # Plot training progress
         os.makedirs('logs', exist_ok=True)
