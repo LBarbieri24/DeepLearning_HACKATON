@@ -263,10 +263,10 @@ def train(data_loader, model, optimizer, criterion, device, save_checkpoints, ch
         output = model(data)
 
         if current_baseline_mode == 4:  # GCOD specific logic
-            batch_indices = data.original_idx.to(device=device, dtype=torch.long)
+            batch_indices = data.u_idx.to(device=device, dtype=torch.long)
 
             # Ensure indices are within valid range
-            batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
+            #batch_indices = torch.clamp(batch_indices, 0, len(u_values_global) - 1)
 
             if u_values_global.device != device:
                 u_batch_cpu = u_values_global[batch_indices.cpu()].clone().detach()
@@ -499,7 +499,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
             train_size = total_size - 1
             val_size = 1
 
-        train_dataset, val_dataset = random_split(all_train_data, [train_size, val_size])
+        train_dataset_list, val_dataset_list = random_split(all_train_data, [train_size, val_size])
 
         print(f"Train samples: {len(train_dataset)}")
         print(f"Val samples: {len(val_dataset)}")
@@ -511,7 +511,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
             indexed_train_dataset.append(data_sample)
 
         train_loader = DataLoader(indexed_train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
-        val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+        val_loader = DataLoader(val_dataset_list, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
         # Initialize model
         model = GNN(num_class=6,
@@ -543,7 +543,7 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
                 patience=args.patience_lr, min_lr=args.min_lr)
 
         # Initialize u_values for GCOD
-        u_values_for_train = torch.zeros(len(train_dataset), device=device, requires_grad=False)
+        u_values_for_train = torch.zeros(len(indexed_train_dataset), device=device, requires_grad=False)
         print(f"Initialized u_values_for_train with size: {u_values_for_train.size()}")
 
         # Training loop with early stopping
