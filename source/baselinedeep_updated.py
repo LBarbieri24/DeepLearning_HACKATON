@@ -303,11 +303,11 @@ def get_arguments(dataset_name):
 
     if dataset_name == 'D':
         args.update({
-            'num_layer': 3,
-            'gce_q': 0.4,
-            'emb_dim': 218,
+            'num_layer': 2,
+            'gce_q': 0.7,
+            'emb_dim': 512,
             'edge_drop_ratio' : 0.3,
-            'drop_ratio': 0.8,
+            'drop_ratio': 0.6,
         })
 
     return argparse.Namespace(**args)
