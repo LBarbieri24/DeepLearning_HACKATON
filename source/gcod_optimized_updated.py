@@ -178,7 +178,7 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Validate and clamp targets to [0, num_classes-1]
-        targets = torch.clamp(targets, 0, self.num_classes - 1)
+        #targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -195,12 +195,12 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Robust target validation
-        targets = targets.flatten()  # Ensure 1D
-        targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
-        targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
-        targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
-                              targets)  # Cap at max
-        targets = targets.long()  # Ensure long type
+        # targets = targets.flatten()  # Ensure 1D
+        # targets = torch.where(torch.isnan(targets), torch.zeros_like(targets), targets)  # Replace NaN
+        # targets = torch.where(targets < 0, torch.zeros_like(targets), targets)  # Replace negative
+        # targets = torch.where(targets >= self.num_classes, torch.full_like(targets, self.num_classes - 1),
+        #                       targets)  # Cap at max
+        # targets = targets.long()  # Ensure long type
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         y_soft = F.softmax(logits, dim=1)
@@ -209,12 +209,17 @@ class GCODLoss(nn.Module):
         L2_reconstruction = (1.0 / self.num_classes) * torch.norm(term, p='fro').pow(2)
 
         # Only add regularization if lambda_r > 0
-        if self.lambda_r > 0:
-            current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
-            u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
-            L2 = L2_reconstruction + u_reg
-        else:
-            L2 = L2_reconstruction
+        # if self.lambda_r > 0:
+        #     current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
+        #     u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
+        #     L2 = L2_reconstruction + u_reg
+        # else:
+        #     L2 = L2_reconstruction
+        # return L2
+        current_u_params_1d = self._ensure_u_shape(u_params, batch_size, target_ndim=1)
+        u_reg = self.lambda_r * torch.norm(current_u_params_1d, p=2).pow(2)
+
+        L2 = L2_reconstruction + u_reg
         return L2
 
     def compute_L3(self, logits, targets, u_params, l3_coeff):
@@ -224,7 +229,7 @@ class GCODLoss(nn.Module):
             return torch.tensor(0.0, device=logits.device, requires_grad=logits.requires_grad)
 
         # Validate and clamp targets to [0, num_classes-1]
-        targets = torch.clamp(targets, 0, self.num_classes - 1)
+        #targets = torch.clamp(targets, 0, self.num_classes - 1)
 
         y_onehot = F.one_hot(targets, num_classes=self.num_classes).float()
         diag_elements = (logits * y_onehot).sum(dim=1)
@@ -499,7 +504,13 @@ def run_optimized_gcod(dataset, train_path=None, test_path=None):
         print(f"Train samples: {len(train_dataset)}")
         print(f"Val samples: {len(val_dataset)}")
 
-        train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+        # Re-index train_dataset_list for u_values_global
+        indexed_train_dataset = []
+        for i, data_sample in enumerate(train_dataset_list):
+            data_sample.u_idx = i # This new attribute will be used for u_values_global
+            indexed_train_dataset.append(data_sample)
+
+        train_loader = DataLoader(indexed_train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
         val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
 
         # Initialize model
