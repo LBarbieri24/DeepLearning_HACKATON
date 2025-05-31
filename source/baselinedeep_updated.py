@@ -214,9 +214,6 @@ def save_predictions(predictions, dataset_name):
     output_df.to_csv(output_csv_path, index=False)
     print(f"Predictions saved to {output_csv_path}")
 
-def save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, output_dir):
-    """Save training metrics to text files instead of plots"""
-    os.makedirs(output_dir, exist_ok=True)
 
 def plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, output_dir):
     epochs = range(1, len(train_losses) + 1)
@@ -240,28 +237,6 @@ def plot_training_progress(train_losses, train_accuracies, val_losses, val_accur
     plt.legend()
     plt.grid(True)
 
-    # Save detailed metrics
-    metrics_file = os.path.join(output_dir, "training_metrics.txt")
-    with open(metrics_file, 'w') as f:
-        f.write("Epoch,Train_Loss,Train_Acc,Val_Loss,Val_Acc,Learning_Rate\n")
-        for i in range(len(train_losses)):
-            lr = learning_rates[i] if i < len(learning_rates) else learning_rates[-1]
-            f.write(f"{i + 1},{train_losses[i]:.6f},{train_accuracies[i]:.6f},"
-                    f"{val_losses[i]:.6f},{val_accuracies[i]:.6f},{lr:.2e}\n")
-
-    # Save summary
-    summary_file = os.path.join(output_dir, "training_summary.txt")
-    with open(summary_file, 'w') as f:
-        f.write("=== TRAINING SUMMARY ===\n")
-        f.write(f"Total Epochs: {len(train_losses)}\n")
-        f.write(f"Best Train Accuracy: {max(train_accuracies):.4f}\n")
-        f.write(f"Best Val Accuracy: {max(val_accuracies):.4f}\n")
-        f.write(f"Final Train Loss: {train_losses[-1]:.4f}\n")
-        f.write(f"Final Val Loss: {val_losses[-1]:.4f}\n")
-        f.write(f"Final Learning Rate: {learning_rates[-1]:.2e}\n")
-
-    print(f"Training logs saved to {output_dir}")
-
     os.makedirs(output_dir, exist_ok=True)
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, "training_progress.png"))
@@ -275,20 +250,20 @@ def get_arguments(dataset_name):
         'dataset': dataset_name,
         'train_mode': 1,
         'num_layer': 2,
-        'emb_dim': 256,
+        'emb_dim': 128,
         'drop_ratio': 0.3,
-        'virtual_node': False,
+        'virtual_node': True,
         'residual': True,
         'JK': "last",
         'edge_drop_ratio': 0.15,
         'batch_norm': True,
         'graph_pooling': "mean",
         'batch_size': 64,
-        'epochs': 250,
+        'epochs': 200,
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
         'gce_q': 0.9,
-        'initial_lr': 6e-3,
+        'initial_lr': 5e-3,
         'best_model_criteria': 'f1',
         'use_scheduler': True,
         'scheduler_type': 'ReduceLROnPlateau',
@@ -300,7 +275,7 @@ def get_arguments(dataset_name):
         'T_max': 50,
         'eta_min': 1e-6,
         'gamma_exp': 0.95,
-        'max_lr': 5e-3,
+        'max_lr': 1e-3,
         'pct_start': 0.3,
         'early_stopping': True,
         'patience': 25,
@@ -319,9 +294,9 @@ def get_arguments(dataset_name):
 
     if dataset_name == 'C':
         args.update({
-            'num_layer': 2,
-            'gce_q': 0.9,
-            'emb_dim': 512,
+            'num_layer': 3,
+            'gce_q': 0.8,
+            'emb_dim': 256,
             'edge_drop_ratio' : 0.3,
             'drop_ratio': 0.7,
         })
@@ -329,10 +304,10 @@ def get_arguments(dataset_name):
     if dataset_name == 'D':
         args.update({
             'num_layer': 3,
-            'gce_q': 0.7,
-            'emb_dim': 512,
-            'edge_drop_ratio' : 0.1,
-            'drop_ratio': 0.6,
+            'gce_q': 0.8,
+            'emb_dim': 256,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.7,
         })
 
     return argparse.Namespace(**args)
@@ -447,11 +422,8 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
 
         train_losses, train_accuracies = [], []
         val_losses, val_accuracies = [], []
-        learning_rates = []
 
         for epoch in range(args.epochs):
-            current_lr = optimizer.param_groups[0]['lr']
-            learning_rates.append(current_lr)
             train_loss, train_acc = train(
                 train_loader, model, optimizer, criterion, device,
                 save_checkpoints=True, checkpoint_path=f"checkpoints/{dataset}_epoch", current_epoch=epoch,
@@ -478,15 +450,12 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
 
             # Learning rate scheduling with logging
             if scheduler is not None:
-                old_lr = current_lr
-                #current_lr = optimizer.param_groups[0]['lr']
+                current_lr = optimizer.param_groups[0]['lr']
                 scheduler.step(val_loss)
                 new_lr = optimizer.param_groups[0]['lr']
 
-                if new_lr != old_lr:
-                    print(f"Learning rate reduced: {old_lr:.2e} → {new_lr:.2e}")
-                # if new_lr != current_lr:
-                #     print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
+                if new_lr != current_lr:
+                    print(f"Learning rate reduced: {current_lr:.2e} → {new_lr:.2e}")
 
             if (epoch + 1) % 10 == 0:
                 current_lr = optimizer.param_groups[0]['lr']
@@ -500,7 +469,6 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
 
         # Plot training progress
         os.makedirs('logs', exist_ok=True)
-        save_training_logs(train_losses, train_accuracies, val_losses, val_accuracies, learning_rates, 'logs')
         plot_training_progress(train_losses, train_accuracies, val_losses, val_accuracies, 'logs')
 
     else:
