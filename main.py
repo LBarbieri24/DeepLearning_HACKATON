@@ -88,7 +88,7 @@ def main():
     # Run appropriate baseline
     if args.baseline == 'gcod':
          run_baseline_gcod(dataset, train_path, args.test_path)
-        print("no longer available gcod")
+         print("no longer available gcod")
     else:
         run_baseline_deep(dataset, train_path, args.test_path, args.baseline)
 
