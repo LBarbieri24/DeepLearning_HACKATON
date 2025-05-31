@@ -248,7 +248,7 @@ def get_arguments(dataset_name):
         'dataset': dataset_name,
         'train_mode': 1,
         'num_layer': 2,
-        'emb_dim': 128,
+        'emb_dim': 256,
         'drop_ratio': 0.3,
         'virtual_node': True,
         'residual': True,
@@ -260,7 +260,7 @@ def get_arguments(dataset_name):
         'epochs': 200,
         'baseline_mode': 3,  # 1=CE, 2=Noisy CE, 3=GCE
         'noise_prob': 0.2,
-        'gce_q': 0.9,
+        'gce_q': 0.5,
         'initial_lr': 5e-3,
         'best_model_criteria': 'f1',
         'use_scheduler': True,
@@ -289,6 +289,25 @@ def get_arguments(dataset_name):
             'gce_q': 0.9,
             'emb_dim': 128,
         })
+
+    if dataset_name == 'C':
+        args.update({
+            'num_layer': 2,
+            'gce_q': 0.9,
+            'emb_dim': 512,
+            'edge_drop_ratio' : 0.3,
+            'drop_ratio': 0.7,
+        })
+
+    if dataset_name == 'D':
+        args.update({
+            'num_layer': 3,
+            'gce_q': 0.7,
+            'emb_dim': 512,
+            'edge_drop_ratio' : 0.1,
+            'drop_ratio': 0.6,
+        })
+
 
     return argparse.Namespace(**args)
 
