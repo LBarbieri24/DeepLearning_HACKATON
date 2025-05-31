@@ -48,7 +48,7 @@ def run_baseline_deep(dataset, train_path=None, test_path=None, baseline_choice=
     baseline_func(dataset, train_path, test_path, baseline_choice)
 
 
- def run_baseline_gcod(dataset, train_path=None, test_path=None):
+def run_baseline_gcod(dataset, train_path=None, test_path=None):
      """Run the GCOD baseline with dataset-specific optimizations"""
      from source.gcod_optimized_updated import run_optimized_gcod as gcod_func
      gcod_func(dataset, train_path, test_path)
