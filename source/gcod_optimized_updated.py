@@ -111,19 +111,28 @@ def json_to_torch_geometric(json_data, has_labels=True):
 
         # Add label if available
         if has_labels:
+            y_val = None
             if 'y' in item:
                 y_data = item['y']
                 # Handle nested list format [[4]] -> 4
                 if isinstance(y_data, list) and len(y_data) > 0:
                     if isinstance(y_data[0], list):
-                        y_data = y_data[0][0] if y_data[0] else 0
+                        y_val = y_data[0][0] if y_data[0] else 0
                     else:
-                        y_data = y_data[0]
-                data.y = torch.tensor(y_data, dtype=torch.long)
+                        y_val = y_data[0]
+                else:
+                    y_val = y_data
             elif 'label' in item:
-                data.y = torch.tensor(item['label'], dtype=torch.long)
+                y_val = item['label']
             elif 'target' in item:
-                data.y = torch.tensor(item['target'], dtype=torch.long)
+                y_val = item['target']
+
+            # Validate and clamp label to valid range [0, 5]
+            if y_val is not None:
+                y_val = max(0, min(5, int(y_val)))
+                data.y = torch.tensor(y_val, dtype=torch.long)
+            else:
+                data.y = torch.tensor(0, dtype=torch.long)
 
         # Store original index for GCOD if needed
         data.original_idx = i
