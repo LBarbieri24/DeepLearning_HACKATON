@@ -31,4 +31,4 @@ While specific hyperparameter configurations varied slightly per dataset to opti
 ## Reference to notebooks
 Real baseline was beaten using notebooks in these links:
 - https://www.kaggle.com/code/lbarbieri/baselinedeep/
-- https://www.kaggle.com/code/lbarbieri/gcodio/
+- https://www.kaggle.com/code/lbarbieri/gcod_deep/
